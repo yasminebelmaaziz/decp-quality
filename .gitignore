@@ -1,0 +1,13 @@
+# Données (jamais commitées : données personnelles possibles dans Sirene)
+data/
+*.parquet
+*.csv
+*.duckdb
+# Secrets
+.env
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ipynb_checkpoints/
