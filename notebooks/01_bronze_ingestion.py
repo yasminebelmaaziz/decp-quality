@@ -5,14 +5,20 @@
 # COMMAND ----------
 
 import os
+import sys
 from pyspark.sql import SparkSession, functions as F
+
+# git folder databricks : cwd = dossier du notebook, donc ../src
+sys.path.append(os.path.abspath("../src"))
+sys.path.append(os.path.abspath("src"))
+from decp_quality import config
 
 year = 2024
 on_dbx = "DATABRICKS_RUNTIME_VERSION" in os.environ
 
 if on_dbx:
-    src = "/Volumes/main/decp/raw/decp.parquet"
-    target = "main.decp.bronze_decp"
+    src = config.decp_file
+    target = config.table("bronze_decp")
 else:
     src = "data/decp.parquet"
     target = "data/bronze/decp"

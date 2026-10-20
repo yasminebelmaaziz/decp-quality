@@ -5,11 +5,18 @@
 # COMMAND ----------
 
 import os
+import sys
 from pyspark.sql import SparkSession, Window, functions as F
+
+# git folder databricks : cwd = dossier du notebook, donc ../src
+sys.path.append(os.path.abspath("../src"))
+sys.path.append(os.path.abspath("src"))
+from decp_quality import config
 
 on_dbx = "DATABRICKS_RUNTIME_VERSION" in os.environ
 if on_dbx:
-    src, out_marche, out_tit = "main.decp.bronze_decp", "main.decp.silver_marche", "main.decp.silver_marche_titulaire"
+    src = config.table("bronze_decp")
+    out_marche, out_tit = config.table("silver_marche"), config.table("silver_marche_titulaire")
 else:
     src, out_marche, out_tit = "data/bronze/decp", "data/silver/marche", "data/silver/marche_titulaire"
 
@@ -18,15 +25,15 @@ bronze = spark.table(src) if on_dbx else spark.read.parquet(src)
 
 # COMMAND ----------
 
-# attributions initiales seulement
+#attributions init seulement
 df = bronze.filter(F.col("modification_id") == 0)
 n_init = df.count()
 
-# texte vide -> null
+#texte vide -> null
 for c in ["id", "acheteur_id", "titulaire_id", "objet", "codeCPV"]:
     df = df.withColumn(c, F.nullif(F.trim(F.col(c)), F.lit("")))
 
-# type identifiant : Siret, siret -> SIRET / HORS-UE -> HORS_UE
+#type id : Siret, siret -> SIRET / HORS-UE -> HORS_UE
 typ = F.upper(F.regexp_replace(F.trim(F.col("titulaire_typeIdentifiant")), r"[\s-]+", "_"))
 df = df.withColumn("titulaire_typeIdentifiant", F.nullif(typ, F.lit("")))
 
