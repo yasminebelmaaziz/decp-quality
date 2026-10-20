@@ -1,55 +1,46 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC # 01 - Bronze : ingestion brute des DECP consolidées
-# MAGIC Données chargées telles quelles (aucun nettoyage), restreintes à l'année retenue,
-# MAGIC avec deux colonnes techniques : `_source` et `_ingested_at`.
+# MAGIC # 01 bronze : chargement brut des decp
 
 # COMMAND ----------
 
 import os
 from pyspark.sql import SparkSession, functions as F
 
-YEAR = 2024  # année retenue (voir docs/DECISIONS.md)
-IS_DATABRICKS = "DATABRICKS_RUNTIME_VERSION" in os.environ
+year = 2024
+on_dbx = "DATABRICKS_RUNTIME_VERSION" in os.environ
 
-if IS_DATABRICKS:
-    # Volume Unity Catalog : adapter catalogue / schéma à votre espace
-    SOURCE_PATH = "/Volumes/main/decp/raw/decp.parquet"
-    BRONZE_TARGET = "main.decp.bronze_decp"
+if on_dbx:
+    src = "/Volumes/main/decp/raw/decp.parquet"
+    target = "main.decp.bronze_decp"
 else:
-    SOURCE_PATH = "data/decp.parquet"
-    BRONZE_TARGET = "data/bronze/decp"
+    src = "data/decp.parquet"
+    target = "data/bronze/decp"
 
-spark = SparkSession.builder.appName("bronze_decp").config("spark.ui.enabled", "false").getOrCreate()
-
-# COMMAND ----------
-
-raw = spark.read.parquet(SOURCE_PATH)
-n_total = raw.count()
-
-# Périmètre : marchés notifiés en YEAR, PLUS les lignes dont la date de notification est aberrante
-# (hors 2015..année courante) mais publiées en YEAR. Sans cela, ces anomalies seraient exclues
-# avant même la mesure de qualité. Le reste est conservé brut (modifications, doublons : traités en silver).
-notif_year = F.year("dateNotification")
-notif_aberrante = notif_year.isNull() | (notif_year < 2015) | (notif_year > F.year(F.current_date()))
-in_scope = (notif_year == YEAR) | (notif_aberrante & (F.year("datePublicationDonnees") == YEAR))
-
-bronze = (
-    raw.filter(in_scope)
-    .withColumn("_scope", F.when(notif_year == YEAR, F.lit("notification")).otherwise(F.lit("notification_aberrante_publiee")))
-    .withColumn("_source", F.lit(os.path.basename(SOURCE_PATH)))
-    .withColumn("_ingested_at", F.current_timestamp())
-)
+spark = SparkSession.builder.appName("bronze").config("spark.ui.enabled", "false").getOrCreate()
 
 # COMMAND ----------
 
-if IS_DATABRICKS:
-    bronze.write.format("delta").mode("overwrite").saveAsTable(BRONZE_TARGET)
+raw = spark.read.parquet(src)
+n_raw = raw.count()
+
+# on garde aussi les dates de notif bizarres si publiees en 2024
+y_notif = F.year("dateNotification")
+bad_notif = y_notif.isNull() | (y_notif < 2015) | (y_notif > F.year(F.current_date()))
+keep = (y_notif == year) | (bad_notif & (F.year("datePublicationDonnees") == year))
+
+bronze = (raw.filter(keep)
+    .withColumn("_scope", F.when(y_notif == year, "notification").otherwise("notification_aberrante_publiee"))
+    .withColumn("_source", F.lit(os.path.basename(src)))
+    .withColumn("_ingested_at", F.current_timestamp()))
+
+# COMMAND ----------
+
+if on_dbx:
+    bronze.write.format("delta").mode("overwrite").saveAsTable(target)
+    n_bronze = spark.table(target).count()
 else:
-    # En local : Parquet (Delta n'est utilisé que sur Databricks)
-    bronze.write.mode("overwrite").parquet(BRONZE_TARGET)
+    bronze.write.mode("overwrite").parquet(target)
+    n_bronze = spark.read.parquet(target).count()
 
-# COMMAND ----------
-
-n_bronze = spark.read.parquet(BRONZE_TARGET).count() if not IS_DATABRICKS else spark.table(BRONZE_TARGET).count()
-print(f"Lignes source : {n_total} | lignes bronze (périmètre {YEAR}) : {n_bronze}")
+print("source:", n_raw, "bronze:", n_bronze)

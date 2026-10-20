@@ -44,8 +44,8 @@ Dernière mise à jour : 2026-10-20. Tous les chiffres viennent de l'exécution 
 - Sorties : `silver_marche` (286 785 marchés) et `silver_marche_titulaire` (322 646 couples marché-titulaire).
 
 ### Extrait Sirene (`src/decp_quality/sirene_extract.py`)
-- 73 569 SIRET distincts demandés, 73 140 trouvés dans Sirene.
-- 72 663 établissements diffusibles extraits (57 386 actifs, 15 277 fermés).
+- 73 606 SIRET distincts demandés, 73 177 trouvés dans Sirene.
+- 72 700 établissements diffusibles extraits (57 386 actifs, 15 277 fermés).
 - 477 non diffusibles exclus. Seuls leurs SIRET sont gardés à part.
 - L'extrait ne garde que 12 colonnes, sans nom, enseigne ni adresse de voie. Il fait 1,9 Mo.
 
